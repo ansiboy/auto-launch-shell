@@ -1,7 +1,9 @@
 import { app, BrowserWindow, Tray, Menu } from 'electron'
 import path = require('path')
+import fs = require('fs')
 import { errors } from './errors';
 import { auto } from './auto-launch'
+import { runStartupFile } from './run-startup-file';
 
 //==========================================================
 // app 仅有单例
@@ -23,7 +25,7 @@ async function createWindow() {
         width: 800, height: 600, maximizable: false, show: false,
         closable: false
     })
-    win.loadFile('index.html')
+    win.loadFile('src/index.html')
     win.setAutoHideMenuBar(true)
     win.setSkipTaskbar(true)
 
@@ -65,3 +67,12 @@ async function createWindow() {
 
 
 app.on('ready', createWindow)
+
+let binPath = path.join(app.getAppPath(), 'bin')
+if (fs.existsSync(binPath) == true) {
+    fs.readdirSync(binPath).forEach(file => {
+        if (path.extname(file) == '.exe') {
+            runStartupFile(binPath, file)
+        }
+    })
+}

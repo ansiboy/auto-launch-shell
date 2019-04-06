@@ -3,7 +3,7 @@ import path = require('path')
 import fs = require('fs')
 import { errors } from './errors';
 import { auto } from './auto-launch'
-import { runStartupFile } from './run-startup-file';
+import { startPrograms, stopPrograms } from './run-startup-file';
 
 //==========================================================
 // app 仅有单例
@@ -56,6 +56,7 @@ async function createWindow() {
         {
             label: '退出',
             click() {
+                stopPrograms()
                 app.exit()
             }
         }
@@ -68,11 +69,4 @@ async function createWindow() {
 
 app.on('ready', createWindow)
 
-let binPath = path.join(app.getAppPath(), 'bin')
-if (fs.existsSync(binPath) == true) {
-    fs.readdirSync(binPath).forEach(file => {
-        if (path.extname(file) == '.exe') {
-            runStartupFile(binPath, file)
-        }
-    })
-}
+startPrograms()

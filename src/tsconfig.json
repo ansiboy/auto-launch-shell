@@ -5,6 +5,19 @@
         "module": "commonjs",
         "strict": true,
         "sourceMap": true,
-        "experimentalDecorators": true
+        "experimentalDecorators": true,
+        "outDir": "../out",
+        "jsx": "react",
+        "paths": {
+            "electron": [
+                "../node_modules/electron/electron.d.ts"
+            ],
+            "maishu-dilu": [
+                "../node_modules/maishu-dilu/dist/index.d.ts"
+            ],
+            "maishu-ui-toolkit": [
+                "../node_modules/maishu-ui-toolkit/dist/index.d.ts"
+            ]
+        }
     }
 }

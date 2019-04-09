@@ -3,3 +3,4 @@ auto-run.vbs
 bin
 src/**/*.js
 src/**/*.map
+out

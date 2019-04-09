@@ -1,9 +1,9 @@
-import { app, BrowserWindow, Tray, Menu } from 'electron'
+import { app, BrowserWindow, Tray, Menu, ipcMain } from 'electron'
 import path = require('path')
-import fs = require('fs')
 import { errors } from './errors';
 import { auto } from './auto-launch'
-import { startPrograms, stopPrograms } from './run-startup-file';
+import { startPrograms, stopPrograms, childProcesses } from './run-startup-file';
+import { constants } from './common';
 
 //==========================================================
 // app 仅有单例
@@ -19,13 +19,12 @@ app.on('second-instance', function () {
 let tray: Tray | null = null
 //==========================================================
 
-
 async function createWindow() {
     let win = new BrowserWindow({
         width: 800, height: 600, maximizable: false, show: false,
         closable: false
     })
-    win.loadFile('src/index.html')
+    win.loadFile('index.html')
     win.setAutoHideMenuBar(true)
     win.setSkipTaskbar(true)
 
@@ -62,8 +61,18 @@ async function createWindow() {
         }
     ])
 
-    tray = new Tray(path.join(__dirname, 'content/th.png'))
+    tray = new Tray(path.join(app.getAppPath(), 'content/th.png'))
     tray.setContextMenu(contextMenu)
+
+    win.webContents.send(constants.childProcessesChanged, childProcesses.value)
+    childProcesses.add(value => {
+        win.webContents.send(constants.childProcessesChanged, value)
+    })
+
+
+    ipcMain.on(constants.getChildProcesses, (event: { sender: any }) => {
+        event.sender.send(constants.childProcessesChanged, childProcesses.value)
+    })
 }
 
 

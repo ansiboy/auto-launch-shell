@@ -1,34 +1,45 @@
-import { spawn, exec, ChildProcess } from "child_process";
+import { ChildProcess } from "child_process";
 import fs = require('fs')
 import path = require('path')
-import json5 = require('json5')
-import { app } from "electron";
+import { app, remote } from "electron";
 import { errors } from "./errors";
+import shelljs = require('shelljs')
+import { ValueStore } from "./value-storage";
+import { constants } from "./common";
 
-let binPath = path.join(app.getAppPath(), 'bin')
-let child_processes: { [key: string]: ChildProcess } = {}
+let binPath = path.join((app || remote.app).getAppPath(), constants.binPath)
 let logCaches: { [name: string]: string[] } = {}
 
-function runStartupFile(dirPath: string, fileName: string, args?: string[]) {
-    args = args || []
-    let pathName = path.join(dirPath, fileName)
-    if (child_processes[pathName]) {
+export let childProcesses = new ValueStore<{ [key: string]: ChildProcess }>({})
+
+let commandsFilePath = path.join(binPath, constants.commandsFile)
+
+function runStartupFile(startProgram: StartupProgram) {
+    if (!startProgram) throw errors.argumentNull('startProgram')
+    let { cwd, command } = startProgram
+    if (cwd) {
+        cwd = path.isAbsolute(cwd) ? cwd : path.join(binPath, cwd)
+    }
+
+    if (getChildProcessesItem(command)) {
         return
     }
 
-    let child_process = spawn(fileName, args, { cwd: dirPath })
-    console.log(`run ${pathName}`)
+    let child_process = shelljs.exec(command, { cwd, async: true })
+    console.log(`run ${command}`)
     child_process.stderr.on('data', (data) => {
         console.log(data.toString());
     });
 
     child_process.stdout.on('data', (data: Uint8Array) => {
-        log(pathName, data.toString())
+        if (startProgram.log)
+            log(startProgram.log, data.toString())
+
         console.log(data.toString());
     })
 
     child_process.on('close', (code) => {
-        delete child_processes[pathName]
+        deleteChildProcessesItem(command)
         console.log('child process exited with code ' + code);
     });
 
@@ -36,13 +47,13 @@ function runStartupFile(dirPath: string, fileName: string, args?: string[]) {
         console.error(err);
     })
 
-    child_processes[pathName] = child_process
+    setChildProcessesItem(command, child_process)
 }
 
 
-function log(pathName: string, data: string) {
-    if (!pathName) throw errors.argumentNull('pathName')
-    let logFileName = pathName.split('.').slice(0, -1).join('.') + '.log'
+function log(logFileName: string, data: string) {
+    // if (!command) throw errors.argumentNull('pathName')
+    // let logFileName = command.split('.').slice(0, -1).join('.') + '.log'
     let logCache = logCaches[logFileName]
     if (!logCache) {
         logCache = logCaches[logFileName] = []
@@ -54,49 +65,54 @@ setInterval(() => {
 
     let names = Object.getOwnPropertyNames(logCaches)
     for (let i = 0; i < names.length; i++) {
-        let filePath = names[i]
-        // let filePath = path.join(binPath, fileName)
-
-        if (logCaches[filePath]) {
-            if (!fs.existsSync(filePath)) {
-                fs.writeFileSync(filePath, logCaches[filePath].join('\n'))
+        let fileName = names[i]
+        if (logCaches[fileName]) {
+            let pathName = path.join(binPath, fileName)
+            if (!fs.existsSync(pathName)) {
+                fs.writeFileSync(pathName, logCaches[fileName].join('\n'))
             }
             else {
-                fs.appendFileSync(filePath, logCaches[filePath].join('\n'))
+                fs.appendFileSync(pathName, logCaches[fileName].join('\n'))
             }
-            delete logCaches[filePath]
+            delete logCaches[fileName]
         }
     }
 
 }, 1000 * 10)
 
 
+function getChildProcessesItem(name: string) {
+    if (childProcesses.value == null) throw errors.objectIsNull('child_processes.value')
+    return childProcesses.value[name]
+}
+
+function deleteChildProcessesItem(name: string) {
+    if (childProcesses.value == null) throw errors.objectIsNull('child_processes.value')
+    let items = childProcesses.value
+    delete items[name]
+    childProcesses.value = items
+}
+
+function setChildProcessesItem(name: string, item: ChildProcess) {
+    if (childProcesses.value == null) throw errors.objectIsNull('child_processes.value')
+    let items = childProcesses.value
+    items[name] = item
+    childProcesses.value = items
+}
+
 export function startPrograms() {
     if (!fs.existsSync(binPath)) {
         return
     }
 
-    fs.readdirSync(binPath).forEach(file => {
-        let pathName = path.join(binPath, file)
-        let states = fs.lstatSync(pathName)
-        if (states.isFile() && path.extname(file) == '.exe') {
-            runStartupFile(binPath, file)
-            return
-        }
+    if (!fs.existsSync(commandsFilePath))
+        return
 
-        if (states.isDirectory()) {
-            let configPath = startupConfigPath(pathName)
-            if (configPath == null)
-                return
-
-            let content = fs.readFileSync(configPath)
-            let config: StartupConfig = json5.parse(content.toString())
-            if (!config.main)
-                throw errors.startupConfigFieldNull('main')
-
-            runStartupFile(pathName, config.main, config.args)
-        }
-    })
+    let commandsFielContent = fs.readFileSync(commandsFilePath)
+    let commands: StartupProgram[] = JSON.parse(commandsFielContent.toString())
+    for (let i = 0; i < commands.length; i++) {
+        runStartupFile(commands[i])
+    }
 }
 
 export type StartupConfig = {
@@ -104,17 +120,24 @@ export type StartupConfig = {
     args: string[]
 }
 
-function startupConfigPath(dir: string) {
-    let pathName = path.join(dir, 'startup.json5')
-    if (!fs.existsSync(pathName)) {
-        return null
-    }
-    return pathName
+export function stopPrograms() {
+    let names = Object.getOwnPropertyNames(childProcesses.value)
+    names.forEach(name => {
+        stopProgram(name)
+    })
+    shelljs.exit()
 }
 
-export function stopPrograms() {
-    let names = Object.getOwnPropertyNames(child_processes)
-    names.forEach(name => {
-        child_processes[name].kill()
-    })
+export function stopProgram(command: string) {
+    if (!command) throw errors.argumentNull('command')
+    let p = getChildProcessesItem(command)
+    if (!p) return
+
+    p.kill()
+    deleteChildProcessesItem(command)
+}
+
+export function startProgram(item: StartupProgram) {
+    if (!item) throw errors.argumentNull('item')
+    runStartupFile(item)
 }

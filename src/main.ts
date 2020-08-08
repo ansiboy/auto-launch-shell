@@ -21,8 +21,8 @@ let tray: Tray | null = null
 
 async function createWindow() {
     let win = new BrowserWindow({
-        width: 800, height: 600, maximizable: false, show: false,
-        closable: false
+        width: 800, height: 600, maximizable: true, show: false,
+        closable: false, webPreferences: { nodeIntegration: true }
     })
     win.loadFile('index.html')
     win.setAutoHideMenuBar(true)
@@ -37,18 +37,17 @@ async function createWindow() {
             }
         },
         {
-            label: '开机启动', type: 'checkbox',
+            label: '开机启动', type: 'checkbox',    
             checked: isAuto,
-            click(item) {
+            async click(item) {
                 if (tray == null)
                     throw errors.objectIsNull('tray')
 
-                let checked = !item.checked
-                if (checked) {
-                    auto.enable();
+                if (item.checked) {
+                    await auto.enable();
                 }
                 else {
-                    auto.disable()
+                    await auto.disable()
                 }
             }
         },
@@ -68,7 +67,6 @@ async function createWindow() {
     childProcesses.add(value => {
         win.webContents.send(constants.childProcessesChanged, value)
     })
-
 
     ipcMain.on(constants.getChildProcesses, (event: { sender: any }) => {
         event.sender.send(constants.childProcessesChanged, childProcesses.value)

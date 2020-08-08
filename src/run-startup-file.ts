@@ -27,16 +27,18 @@ function runStartupFile(startProgram: StartupProgram) {
 
     let child_process = shelljs.exec(command, { cwd, async: true })
     console.log(`run ${command}`)
-    child_process.stderr.on('data', (data) => {
-        console.log(data.toString());
-    });
+    if (child_process.stderr)
+        child_process.stderr.on('data', (data) => {
+            console.log(data.toString());
+        });
 
-    child_process.stdout.on('data', (data: Uint8Array) => {
-        if (startProgram.log)
-            log(startProgram.log, data.toString())
+    if (child_process.stdout)
+        child_process.stdout.on('data', (data: Uint8Array) => {
+            if (startProgram.log)
+                log(startProgram.log, data.toString())
 
-        console.log(data.toString());
-    })
+            console.log(data.toString());
+        })
 
     child_process.on('close', (code) => {
         deleteChildProcessesItem(command)

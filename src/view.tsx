@@ -9,18 +9,37 @@ import path = require('path')
 import { ChildProcess } from 'child_process';
 import { remote, ipcRenderer, BrowserWindow } from 'electron';
 import { constants } from './common';
+import { CSSProperties } from 'react';
+import * as RunStartupFile from "./run-startup-file";
 
-const COMMAND = 'command'
-const CWD = 'cwd'
+const COMMAND = 'command';
+const CWD = 'cwd';
+const LOG = "log";
 
 // let commandsFile = path.join(binPath, 'commands.json')
 let commandsFilePath = path.join(remote.app.getAppPath(), constants.binPath, constants.commandsFile)
 interface State {
     startupPrograms: (StartupProgram & { status?: 'start' | 'stop' })[],
     defaultCWD: boolean,
+    defaultLOG: boolean,
     command?: string,
     cwd?: string,
+    log?: string,
 }
+
+let programButtonsWidth = 160;
+let programTextStyle: Partial<CSSProperties> = {
+    width: `calc((100% - ${programButtonsWidth}px) / 3)`,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    height: 40
+}
+let programTitleStyle: Partial<CSSProperties> = {
+    fontWeight: "bold",
+    textAlign: "center",
+    height: 40
+}
+
 
 class MainView extends React.Component<{}, State> {
     validator: FormValidator | null = null;
@@ -34,9 +53,11 @@ class MainView extends React.Component<{}, State> {
             let commandsFielContent = fs.readFileSync(commandsFilePath).toString()
             startupPrograms = JSON.parse(commandsFielContent)
         }
-        this.state = { startupPrograms, defaultCWD: true }
+        this.state = { startupPrograms, defaultCWD: true, defaultLOG: true }
     }
-
+    setEmpty() {
+        this.setState({ command: "", cwd: "", log: "", defaultCWD: true, defaultLOG: true });
+    }
     updateStatus(childProcesses: { [key: string]: ChildProcess }) {
         if (childProcesses == null) throw errors.argumentNull('childProcesses')
         let { startupPrograms } = this.state
@@ -56,11 +77,29 @@ class MainView extends React.Component<{}, State> {
         if (!this.validator.check()) {
             return Promise.reject('validate form fail.')
         }
-        let { startupPrograms, command, cwd } = this.state;
-        startupPrograms.push({ command: command || "", cwd: cwd || "" });
+        let { startupPrograms, command, cwd, log } = this.state;
+        if (!command)
+            throw new Error("State of command is null or empty.");
+
+        if (!cwd)
+            throw new Error("State of cwd is null or emtpy.");
+
+        startupPrograms.push({ command, cwd, log });
         this.setState({ startupPrograms });
         let text = JSON.stringify(startupPrograms);
         fs.writeFileSync(commandsFilePath, text);
+        this.setEmpty();
+    }
+    async deleteItem(index: number) {
+        let { startupPrograms } = this.state;
+        startupPrograms = startupPrograms.filter((o, i) => i != index);
+        let text = JSON.stringify(startupPrograms);
+        fs.writeFileSync(commandsFilePath, text);
+        this.setState({ startupPrograms });
+    }
+    async executeItem(item: StartupProgram) {
+        var mod: typeof RunStartupFile = remote.require("./run-startup-file");
+        mod.startProgram(item);
     }
     componentDidMount() {
         if (!this.formElement) throw errors.objectIsNull('formElement')
@@ -82,16 +121,24 @@ class MainView extends React.Component<{}, State> {
         remote.dialog.showOpenDialog(w, {}).then(r => {
             if (r.filePaths != null && r.filePaths.length > 0) {
                 let command = r.filePaths[0];
-                let cwd = this.state.defaultCWD ? path.dirname(command) : this.state.cwd;
-                this.setState({ command, cwd });
+
+                this.onCommandChanged(command);
             }
         });
     }
-    render() {
-        let { startupPrograms, defaultCWD, command, cwd } = this.state;
-        if (defaultCWD && command != null && path.isAbsolute(command)) {
-            cwd = path.dirname(command);
+    onCommandChanged(value: string) {
+        let { cwd, log, defaultCWD, defaultLOG } = this.state;
+        if (defaultCWD) {
+            cwd = path.dirname(value);
         }
+        if (defaultLOG) {
+            log = value + ".log";
+        }
+        this.setState({ command: value, cwd, log })
+
+    }
+    render() {
+        let { startupPrograms, defaultCWD, command, cwd, defaultLOG, log } = this.state;
 
         return <>
             <div className="form-horizontal" ref={e => this.formElement = e || this.formElement}>
@@ -103,9 +150,8 @@ class MainView extends React.Component<{}, State> {
                         <div style={{ marginLeft: 90 }} >
                             <div className="input-group">
                                 <input name={COMMAND} className="form-control" value={command || ""}
-                                    onChange={e => {
-                                        this.setState({ command: e.target.value })
-                                    }} />
+                                    onChange={e => this.onCommandChanged(e.target.value)}
+                                    placeholder="请输入或选择要运行的命令" />
                                 <div className="input-group-addon" title="请选择要启动的文件"
                                     onClick={() => this.selectStartFile()}>
                                     <i className="glyphicon glyphicon-level-up" />
@@ -120,13 +166,40 @@ class MainView extends React.Component<{}, State> {
                             <label>执行目录</label>
                         </div>
                         <div style={{ marginLeft: 90 }} >
-                            <input name={CWD} className="form-control" readOnly={defaultCWD} value={cwd || ""} />
+                            <input name={CWD} className="form-control" readOnly={defaultCWD} value={cwd || ""}
+                                onChange={e => {
+                                    cwd = e.target.value;
+                                    this.setState({ cwd });
+                                }} />
                             <div className="checkbox">
                                 <label>
                                     <input type="checkbox" checked={defaultCWD}
                                         onChange={e => {
                                             defaultCWD = e.target.checked;
                                             this.setState({ defaultCWD });
+                                        }} />默认
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="form-group">
+                    <div className="col-xs-12">
+                        <div className="pull-left">
+                            <label>日志文件</label>
+                        </div>
+                        <div style={{ marginLeft: 90 }} >
+                            <input className="form-control" readOnly={defaultLOG} value={log || ""}
+                                onChange={e => {
+                                    log = e.target.value;
+                                    this.setState({ log });
+                                }} />
+                            <div className="checkbox">
+                                <label>
+                                    <input type="checkbox" checked={defaultLOG}
+                                        onChange={e => {
+                                            defaultLOG = e.target.checked;
+                                            this.setState({ defaultLOG })
                                         }} />默认
                                 </label>
                             </div>
@@ -148,26 +221,41 @@ class MainView extends React.Component<{}, State> {
                     </div>
                 </div>
                 <hr />
-                <table className="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>执行命令</th>
-                            <th>执行目录</th>
-                            {/* <th style={{ width: 80 }}>状态</th> */}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {startupPrograms.map((o, i) =>
-                            <tr key={i}>
-                                <td>{o.command}</td>
-                                <td>{o.cwd}</td>
-                                {/* <td className={o.status == 'start' ? "text-success" : "text-danger"}>
-                                    {o.status == 'start' ? '已启动' : '未启动'}
-                                </td> */}
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                <div>
+                    <div style={{ width: "100%" }} className="clearfix">
+                        <div style={Object.assign({ width: programTextStyle.width } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
+                            执行命令
+                        </div>
+                        <div style={Object.assign({ width: programTextStyle.width } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
+                            执行目录
+                        </div>
+                        <div style={Object.assign({ width: programTextStyle.width } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
+                            日志
+                        </div>
+                        <div style={Object.assign({ width: programButtonsWidth } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
+                            操作
+                        </div>
+                    </div>
+                    {startupPrograms.map((o, i) =>
+                        <div key={i} style={{ width: "100%" }} className="clearfix">
+                            <div style={programTextStyle} className="pull-left" title={o.command}>
+                                {o.command}
+                            </div>
+                            <div style={programTextStyle} className="pull-left" title={o.cwd}>
+                                {o.cwd}
+                            </div>
+                            <div style={programTextStyle} className="pull-left" title={o.log}>
+                                {o.log}
+                            </div>
+                            <div style={{ width: 160, textAlign: "center" }} className="pull-left">
+                                <button className="btn btn-danger btn-sm" style={{ marginRight: 5 }}
+                                    onClick={() => this.deleteItem(i)}>删除</button>
+                                <button className="btn btn-primary btn-sm"
+                                    onClick={() => this.executeItem(o)}>运行</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </>
     }

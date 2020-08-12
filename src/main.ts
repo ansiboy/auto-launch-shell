@@ -37,7 +37,7 @@ async function createWindow() {
             }
         },
         {
-            label: '开机启动', type: 'checkbox',    
+            label: '开机启动', type: 'checkbox',
             checked: isAuto,
             async click(item) {
                 if (tray == null)

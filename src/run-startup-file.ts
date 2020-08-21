@@ -54,33 +54,30 @@ function runStartupFile(startProgram: StartupProgram) {
 
 
 function log(logFileName: string, data: string) {
-    // if (!command) throw errors.argumentNull('pathName')
-    // let logFileName = command.split('.').slice(0, -1).join('.') + '.log'
-    let logCache = logCaches[logFileName]
+    let logCache = logCaches[logFileName];
     if (!logCache) {
-        logCache = logCaches[logFileName] = []
+        logCache = logCaches[logFileName] = [];
     }
-    logCache.push(data)
+    logCache.push(data);
 }
 
 setInterval(() => {
 
     let names = Object.getOwnPropertyNames(logCaches)
     for (let i = 0; i < names.length; i++) {
-        let fileName = names[i]
-        if (logCaches[fileName]) {
-            let pathName = path.join(binPath, fileName)
+        let pathName = names[i]
+        if (logCaches[pathName]) {
             if (!fs.existsSync(pathName)) {
-                fs.writeFileSync(pathName, logCaches[fileName].join('\n'))
+                fs.writeFileSync(pathName, logCaches[pathName].join('\n'))
             }
             else {
-                fs.appendFileSync(pathName, logCaches[fileName].join('\n'))
+                fs.appendFileSync(pathName, logCaches[pathName].join('\n'))
             }
-            delete logCaches[fileName]
+            delete logCaches[pathName]
         }
     }
 
-}, 1000 * 10)
+}, 1000 * 5)
 
 
 function getChildProcessesItem(name: string) {

@@ -1,0 +1,51 @@
+div.checkbox.switcher label,
+div.radio.switcher label {
+    padding: 0;
+}
+
+div.checkbox.switcher label *,
+div.radio.switcher label * {
+    vertical-align: middle;
+}
+
+div.checkbox.switcher label input,
+div.radio.switcher label input {
+    display: none;
+}
+
+div.checkbox.switcher label input+span,
+div.radio.switcher label input+span {
+    position     : relative;
+    display      : inline-block;
+    margin-right : 10px;
+    width        : 56px;
+    height       : 28px;
+    background   : #f2f2f2;
+    border       : 1px solid #eee;
+    border-radius: 50px;
+    transition   : all 0.3s ease-in-out;
+}
+
+div.checkbox.switcher label input+span small,
+div.radio.switcher label input+span small {
+    position     : absolute;
+    display      : block;
+    width        : 50%;
+    height       : 100%;
+    background   : #fff;
+    border-radius: 50%;
+    transition   : all 0.3s ease-in-out;
+    left         : 0;
+}
+
+div.checkbox.switcher label input:checked+span,
+div.radio.switcher label input:checked+span {
+    background  : #269bff;
+    border-color: #269bff;
+}
+
+div.checkbox.switcher label input:checked+span small,
+div.radio.switcher label input:checked+span small {
+    left: 50%;
+}
+

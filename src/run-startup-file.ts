@@ -43,6 +43,12 @@ function runStartupFile(startProgram: StartupProgram) {
     child_process.on('close', (code) => {
         deleteChildProcessesItem(command)
         console.log('child process exited with code ' + code);
+
+        if (startProgram.guard) {
+            console.log('Program is guard, run again.' + code);
+            runStartupFile(startProgram);
+            return;
+        }
     });
 
     child_process.on('error', (err) => {

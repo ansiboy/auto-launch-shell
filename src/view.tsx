@@ -28,8 +28,9 @@ interface State {
 }
 
 let programButtonsWidth = 160;
+let guardButtonWidth = 60;
 let programTextStyle: Partial<CSSProperties> = {
-    width: `calc((100% - ${programButtonsWidth}px) / 3)`,
+    width: `calc((100% - ${programButtonsWidth + guardButtonWidth}px) / 3)`,
     overflow: "hidden",
     textOverflow: "ellipsis",
     height: 40
@@ -89,6 +90,13 @@ class MainView extends React.Component<{}, State> {
         let text = JSON.stringify(startupPrograms);
         fs.writeFileSync(commandsFilePath, text);
         this.setEmpty();
+    }
+    async guardItem(item: StartupProgram, guard: boolean) {
+        item.guard = guard;
+        let { startupPrograms } = this.state;
+        let text = JSON.stringify(startupPrograms);
+        fs.writeFileSync(commandsFilePath, text);
+        this.setState({ startupPrograms });
     }
     async deleteItem(index: number) {
         let { startupPrograms } = this.state;
@@ -232,6 +240,9 @@ class MainView extends React.Component<{}, State> {
                         <div style={Object.assign({ width: programTextStyle.width } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
                             日志
                         </div>
+                        <div style={Object.assign({ width: guardButtonWidth } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
+                            守护
+                        </div>
                         <div style={Object.assign({ width: programButtonsWidth } as Partial<CSSProperties>, programTitleStyle)} className="pull-left">
                             操作
                         </div>
@@ -247,7 +258,19 @@ class MainView extends React.Component<{}, State> {
                             <div style={programTextStyle} className="pull-left" title={o.log}>
                                 {o.log}
                             </div>
-                            <div style={{ width: 160, textAlign: "center" }} className="pull-left">
+                            <div style={{ width: guardButtonWidth }} className="pull-left text-center">
+                                <div className="checkbox switcher" title={o.guard ? "已开启" : "已关闭"}>
+                                    <label>
+                                        <input type="checkbox" checked={o.guard}
+                                            onChange={e => {
+                                                this.guardItem(o, (e.target as HTMLInputElement).checked)
+                                            }} />
+                                        <span><small></small></span>
+                                    </label>
+
+                                </div>
+                            </div>
+                            <div style={{ width: programButtonsWidth, textAlign: "center" }} className="pull-left">
                                 <button className="btn btn-danger btn-sm" style={{ marginRight: 5 }}
                                     onClick={() => this.deleteItem(i)}>删除</button>
                                 <button className="btn btn-primary btn-sm"

@@ -28,7 +28,7 @@
     "@types/shelljs": "^0.8.4",
     "auto-launch": "^5.0.5",
     "bootstrap": "^3.3.7",
-    "json5": "^2.1.0",
+    "json5": "^2.2.2",
     "maishu-chitu": "^2.3.2",
     "maishu-dilu": "^1.7.1",
     "maishu-ui-toolkit": "^1.8.2",
